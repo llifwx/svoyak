@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Своя игра</title>
+<style>
+:root{--bg:#0a1238;--cell:#1b3fa8;--cell2:#14308a;--gold:#ffd54a;--fg:#fff;--muted:#9fb0e0;--card:#111c4d}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#1a2a6c,var(--bg) 70%);color:var(--fg);font:16px/1.4 system-ui,-apple-system,sans-serif}
+button,.btnlike{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:10px 16px;background:#2d5be3;color:#fff;display:inline-block;text-align:center}
+button:hover:not(:disabled),.btnlike:hover{filter:brightness(1.15)}
+button:disabled{opacity:.35;cursor:default}
+.ghost{background:transparent;border:1px solid var(--muted)}
+.ok{background:#1f9d55}.bad{background:#c53a3a}
+input,textarea,select{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #33407a;background:#fff;color:#111;min-width:0}
+textarea{resize:vertical;min-height:42px}
+.hidden{display:none!important}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.center{justify-content:center}
+header{display:flex;gap:8px;padding:14px 16px;align-items:center;flex-wrap:wrap}
+header h1{margin:0 auto 0 0;font-size:22px;color:var(--gold)}
+main{padding:0 16px 40px;max-width:1100px;margin:auto}
+.center-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:100vh;padding:16px}
+.logo{font-size:clamp(40px,9vw,88px);margin:0;color:var(--gold);letter-spacing:.06em;text-shadow:0 4px 0 #8a6a00}
+.menu-btns{display:flex;flex-direction:column;gap:10px;width:min(340px,100%)}
+/* editor */
+.card{background:var(--card);border-radius:14px;padding:16px;margin:16px 0}
+.card>.row input{flex:1;font-size:18px;font-weight:600}
+.theme{border-top:1px solid #2a3a7a;margin-top:14px;padding-top:12px}
+.theme>.row input{flex:1}
+.q{display:grid;grid-template-columns:80px 130px 1fr 1fr auto auto;gap:8px;align-items:start;margin:8px 0 0 16px}
+.img-pick{display:flex;flex-direction:column;gap:4px;align-items:flex-start;font-size:13px}
+.img-pick input{width:150px;padding:4px;background:transparent;color:var(--muted);border:0}
+.thumb{max-width:120px;max-height:80px;border-radius:6px}
+.img-pick button{padding:4px 8px;font-size:13px}
+@media(max-width:800px){.q{grid-template-columns:1fr 1fr!important;margin-left:0}}
+/* setup */
+#plist{display:flex;flex-direction:column;gap:8px;width:min(340px,100%)}
+#plist .row input{flex:1}
+/* game */
+#game{display:flex;flex-direction:column;min-height:100vh}
+#board{display:grid;gap:6px;padding:0 16px;flex:1;align-content:center}
+.tname,.cell{border-radius:8px;min-height:64px;display:flex;align-items:center;padding:8px 12px}
+.tname{background:var(--cell2);font-weight:700;text-transform:uppercase;font-size:15px}
+.cell{background:var(--cell);justify-content:center;color:var(--gold);font-size:clamp(20px,3vw,34px);font-weight:800}
+.cell:disabled{opacity:1;background:#0e1b52}
+#scores{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:16px}
+.player{background:var(--card);border-radius:12px;padding:10px 16px;text-align:center;min-width:140px}
+.pname{color:var(--muted);font-weight:600}
+.pscore{background:transparent;border:0;color:var(--gold);font-size:26px;font-weight:800;text-align:center;width:130px}
+/* modal */
+#modal{position:fixed;inset:0;background:rgba(5,10,40,.96);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+#mbody{width:min(900px,100%);display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center}
+.qhead{color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.qtext{font-size:clamp(22px,3.4vw,38px);font-weight:600;white-space:pre-wrap}
+.qimg{max-width:100%;max-height:50vh;border-radius:12px}
+.answer{font-size:24px;color:var(--gold);font-weight:700}
+.special{font-size:clamp(32px,6vw,56px);color:var(--gold);margin:0}
+.judge{display:flex;flex-direction:column;gap:6px}
+.jrow{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.jrow span{margin-right:auto;padding-right:16px;font-weight:600}
+.jrow input{width:120px}
+.res{font-size:26px}.win{font-size:40px;color:var(--gold);font-weight:800}
+</style>
+</head>
+<body>
+
+<div id="menu" class="screen center-screen">
+  <h1 class="logo">СВОЯ ИГРА</h1>
+  <div class="menu-btns">
+    <button id="b-play">▶ Начать игру</button>
+    <button id="b-edit" class="ghost">✎ Редактор вопросов</button>
+    <button id="b-export" class="ghost">⬇ Сохранить пак в файл</button>
+    <label class="btnlike ghost">⬆ Загрузить пак из файла<input id="import" type="file" accept=".json,application/json" hidden></label>
+  </div>
+</div>
+
+<div id="editor" class="screen hidden">
+  <header><h1>Редактор вопросов</h1><button class="ghost" data-menu>← В меню</button></header>
+  <main id="ed"></main>
+</div>
+
+<div id="setup" class="screen hidden center-screen">
+  <h2>Игроки</h2>
+  <div id="plist"></div>
+  <div class="row center"><button id="p-add" class="ghost">+ игрок</button><button id="p-go">Начать</button></div>
+  <button class="ghost" data-menu>← В меню</button>
+</div>
+
+<div id="game" class="screen hidden">
+  <header><h1 id="round-name"></h1><button id="next-round">Следующий раунд →</button><button class="ghost" id="g-menu">Выйти</button></header>
+  <div id="board"></div>
+  <div id="scores"></div>
+</div>
+
+<div id="results" class="screen hidden center-screen">
+  <h1 class="logo">ИТОГИ</h1>
+  <div id="res"></div>
+  <button data-menu>В меню</button>
+</div>
+
+<div id="modal" class="hidden"><div id="mbody"></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+function el(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
+    else e[k] = v;
+  }
+  for (const k of kids.flat()) if (k != null && k !== false && k !== '') e.append(k);
+  return e;
+}
+const btn = (text, cls, fn) => el('button', {class: cls, onclick: fn}, text);
+const show = id => document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
+const has = q => q && (q.text || q.img);
+
+/* ---------- хранение: IndexedDB (картинки не влезут в localStorage) ---------- */
+const db = new Promise((res, rej) => {
+  const r = indexedDB.open('svoya-igra', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv');
+  r.onsuccess = () => res(r.result);
+  r.onerror = () => rej(r.error);
+});
+async function idb(mode, fn) {
+  const d = await db;
+  return new Promise((res, rej) => {
+    const t = d.transaction('kv', mode), r = fn(t.objectStore('kv'));
+    t.oncomplete = () => res(r.result);
+    t.onerror = () => rej(t.error);
+  });
+}
+let pack, saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => idb('readwrite', s => s.put(pack, 'pack')).catch(e => alert('Не удалось сохранить: ' + e.message)), 300);
+}
+
+const newQ = price => ({price, type: 'normal', text: '', answer: '', img: ''});
+const newTheme = n => ({name: '', qs: [1, 2, 3, 4, 5].map(i => newQ(i * 100 * n))});
+const newRound = n => ({name: `Раунд ${n}`, themes: [1, 2, 3, 4, 5].map(() => newTheme(n))});
+const defaultPack = () => ({rounds: [newRound(1)], final: {theme: '', text: '', answer: '', img: ''}});
+
+/* ---------- редактор ---------- */
+function inp(obj, key, ph, type = 'text') {
+  return el('input', {type, value: obj[key] ?? '', placeholder: ph,
+    oninput: e => { obj[key] = type === 'number' ? Number(e.target.value) || 0 : e.target.value; save(); }});
+}
+function area(obj, key, ph) {
+  return el('textarea', {value: obj[key] ?? '', placeholder: ph, rows: 2, oninput: e => { obj[key] = e.target.value; save(); }});
+}
+function typeSel(q) {
+  const s = el('select', {onchange: e => { q.type = e.target.value; save(); }},
+    el('option', {value: 'normal'}, 'Обычный'), el('option', {value: 'cat'}, '🐱 Кот в мешке'), el('option', {value: 'auction'}, '🔨 Аукцион'));
+  s.value = q.type;
+  return s;
+}
+function shrink(file, max = 1280) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = el('canvas', {width: Math.round(img.width * k), height: Math.round(img.height * k)});
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      res(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => rej(new Error('не картинка'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+function imgPicker(obj) {
+  const prev = el('img', {className: 'thumb' + (obj.img ? '' : ' hidden'), src: obj.img || ''});
+  const rm = el('button', {className: 'ghost' + (obj.img ? '' : ' hidden'), onclick: () => {
+    obj.img = ''; save(); prev.classList.add('hidden'); rm.classList.add('hidden');
+  }}, 'убрать');
+  const file = el('input', {type: 'file', accept: 'image/*', onchange: async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { obj.img = await shrink(f); } catch { return alert('Не получилось открыть картинку'); }
+    save(); prev.src = obj.img; prev.classList.remove('hidden'); rm.classList.remove('hidden'); e.target.value = '';
+  }});
+  return el('div', {class: 'img-pick'}, '🖼 Картинка:', file, prev, rm);
+}
+function renderEditor() {
+  const rerender = () => { save(); renderEditor(); };
+  $('#ed').replaceChildren(
+    ...pack.rounds.map((r, ri) => el('section', {class: 'card'},
+      el('div', {class: 'row'}, inp(r, 'name', 'Название раунда'),
+        btn('+ тема', 'ghost', () => { r.themes.push(newTheme(ri + 1)); rerender(); }),
+        btn('Удалить раунд', 'bad', () => confirm(`Удалить «${r.name}» со всеми вопросами?`) && (pack.rounds.splice(ri, 1), rerender()))),
+      ...r.themes.map((t, ti) => el('div', {class: 'theme'},
+        el('div', {class: 'row'}, inp(t, 'name', `Тема ${ti + 1}`),
+          btn('+ вопрос', 'ghost', () => { t.qs.push(newQ((t.qs.at(-1)?.price || 0) + 100 * (ri + 1))); rerender(); }),
+          btn('Удалить тему', 'bad', () => confirm('Удалить тему?') && (r.themes.splice(ti, 1), rerender()))),
+        ...t.qs.map((q, qi) => el('div', {class: 'q'},
+          inp(q, 'price', 'Цена', 'number'), typeSel(q), area(q, 'text', 'Вопрос'), area(q, 'answer', 'Ответ'), imgPicker(q),
+          btn('✕', 'bad', () => confirm('Удалить вопрос?') && (t.qs.splice(qi, 1), rerender())))))))),
+    btn('+ Добавить раунд', '', () => { pack.rounds.push(newRound(pack.rounds.length + 1)); rerender(); }),
+    el('section', {class: 'card'}, el('h2', {}, 'Финал'),
+      el('div', {class: 'q', style: 'grid-template-columns:1fr 1fr 1fr auto;margin-left:0'},
+        inp(pack.final, 'theme', 'Тема финала'), area(pack.final, 'text', 'Вопрос'), area(pack.final, 'answer', 'Ответ'), imgPicker(pack.final)))
+  );
+}
+
+/* ---------- игроки ---------- */
+let names = ['Игрок 1', 'Игрок 2', 'Игрок 3'];
+function renderSetup() {
+  $('#plist').replaceChildren(...names.map((n, i) => el('div', {class: 'row'},
+    el('input', {value: n, oninput: e => names[i] = e.target.value}),
+    btn('✕', 'bad', () => { names.splice(i, 1); renderSetup(); }))));
+}
+
+/* ---------- игра ---------- */
+let state;
+const closeModal = () => $('#modal').classList.add('hidden');
+const modal = (...kids) => { $('#mbody').replaceChildren(...kids); $('#modal').classList.remove('hidden'); };
+const lock = node => node.querySelectorAll('button').forEach(b => b.disabled = true);
+
+function renderScores() {
+  $('#scores').replaceChildren(...state.players.map(p => el('div', {class: 'player'},
+    el('div', {class: 'pname'}, p.name),
+    el('input', {type: 'number', className: 'pscore', value: p.score, title: 'Можно поправить вручную',
+      onchange: e => p.score = Number(e.target.value) || 0}))));
+}
+function renderGame() {
+  const r = pack.rounds[state.ri];
+  $('#round-name').textContent = r.name;
+  $('#next-round').textContent = state.ri + 1 < pack.rounds.length ? 'Следующий раунд →' : (has(pack.final) ? 'К финалу →' : 'Завершить игру →');
+  const themes = r.themes.map((t, ti) => [t, ti]).filter(([t]) => t.qs.some(has));
+  const n = Math.max(1, ...themes.map(([t]) => t.qs.length));
+  const b = $('#board');
+  b.style.gridTemplateColumns = `minmax(120px,1.6fr) repeat(${n},1fr)`;
+  b.replaceChildren(...themes.flatMap(([t, ti]) => [
+    el('div', {class: 'tname'}, t.name),
+    ...Array.from({length: n}, (_, qi) => {
+      const q = t.qs[qi], key = `${state.ri}:${ti}:${qi}`, off = !has(q) || state.used.has(key);
+      return el('button', {class: 'cell', disabled: off, onclick: () => openQ(t, q, key)}, off ? '' : String(q.price));
+    })
+  ]));
+  renderScores();
+}
+function openQ(t, q, key) {
+  const done = () => { state.used.add(key); closeModal(); renderGame(); };
+  const head = el('div', {class: 'qhead'}, `${t.name} · ${q.price}`);
+  if (q.type === 'cat') return modal(el('h2', {class: 'special'}, '🐱 Кот в мешке'), head,
+    el('p', {}, 'Кому отдаёте вопрос?'),
+    el('div', {class: 'row center'}, ...state.players.map(p => btn(p.name, '', () => ask(t, q, [p], q.price, done)))));
+  if (q.type === 'auction') {
+    const who = el('select', {}, ...state.players.map((p, i) => el('option', {value: i}, `${p.name} (${p.score})`)));
+    const stake = el('input', {type: 'number', value: q.price, min: 0});
+    return modal(el('h2', {class: 'special'}, '🔨 Аукцион'), head,
+      el('p', {}, 'Кто выиграл торги и какая ставка?'),
+      el('div', {class: 'row center'}, who, stake,
+        btn('Дальше', '', () => ask(t, q, [state.players[who.value]], Math.max(0, Number(stake.value) || 0), done))));
+  }
+  ask(t, q, state.players, q.price, done);
+}
+function ask(t, q, players, price, done) {
+  const ans = el('div', {class: 'answer hidden'}, 'Ответ: ' + (q.answer || '—'));
+  const reveal = () => ans.classList.remove('hidden');
+  let left = players.length;
+  const judge = el('div', {class: 'judge'}, ...players.map(p => {
+    const row = el('div', {class: 'jrow'}, el('span', {}, p.name),
+      btn(`✓ +${price}`, 'ok', () => { p.score += price; lock(judge); reveal(); renderScores(); }),
+      btn(`✗ −${price}`, 'bad', () => { p.score -= price; lock(row); renderScores(); if (--left === 0) reveal(); }));
+    return row;
+  }));
+  modal(el('div', {class: 'qhead'}, `${t.name} · ${price}`),
+    q.text && el('div', {class: 'qtext'}, q.text),
+    q.img && el('img', {className: 'qimg', src: q.img}),
+    ans, judge,
+    el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', reveal), btn('Закрыть вопрос', '', done)));
+}
+function startFinal() {
+  const f = pack.final, ps = state.players.filter(p => p.score > 0);
+  if (!has(f) || !ps.length) return results();
+  const bets = ps.map(p => el('input', {type: 'number', min: 0, max: p.score, value: 0}));
+  modal(el('h2', {class: 'special'}, 'Финал'), el('div', {class: 'qtext'}, 'Тема: ' + (f.theme || '—')),
+    el('p', {}, 'Ставки (от 0 до своего счёта). Игроки с 0 и минусом не участвуют.'),
+    el('div', {class: 'judge'}, ...ps.map((p, i) => el('div', {class: 'jrow'}, el('span', {}, `${p.name} (${p.score})`), bets[i]))),
+    btn('Показать вопрос', '', () => finalQ(f, ps, bets.map((x, i) => Math.min(ps[i].score, Math.max(0, Number(x.value) || 0))))));
+}
+function finalQ(f, ps, bets) {
+  const ans = el('div', {class: 'answer hidden'}, 'Ответ: ' + (f.answer || '—'));
+  modal(el('div', {class: 'qhead'}, 'Финал · ' + (f.theme || '')),
+    f.text && el('div', {class: 'qtext'}, f.text),
+    f.img && el('img', {className: 'qimg', src: f.img}),
+    ans,
+    el('div', {class: 'judge'}, ...ps.map((p, i) => {
+      const row = el('div', {class: 'jrow'}, el('span', {}, `${p.name} (ставка ${bets[i]})`),
+        btn('✓ верно', 'ok', () => { p.score += bets[i]; lock(row); }),
+        btn('✗ неверно', 'bad', () => { p.score -= bets[i]; lock(row); }));
+      return row;
+    })),
+    el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', () => ans.classList.remove('hidden')), btn('Итоги', '', results)));
+}
+function results() {
+  closeModal();
+  const s = [...state.players].sort((a, b) => b.score - a.score);
+  $('#res').replaceChildren(...s.map((p, i) => el('div', {class: i ? 'res' : 'res win'}, `${i ? '' : '🏆 '}${p.name} — ${p.score}`)));
+  show('results');
+}
+
+/* ---------- кнопки ---------- */
+document.querySelectorAll('[data-menu]').forEach(b => b.onclick = () => show('menu'));
+$('#b-edit').onclick = () => { renderEditor(); show('editor'); };
+$('#b-play').onclick = () => {
+  if (!pack.rounds.some(r => r.themes.some(t => t.qs.some(has)))) return alert('Сначала добавьте вопросы в редакторе');
+  renderSetup(); show('setup');
+};
+$('#p-add').onclick = () => { names.push(`Игрок ${names.length + 1}`); renderSetup(); };
+$('#p-go').onclick = () => {
+  const ps = names.map(n => n.trim()).filter(Boolean);
+  if (!ps.length) return alert('Добавьте хотя бы одного игрока');
+  state = {players: ps.map(name => ({name, score: 0})), ri: 0, used: new Set()};
+  renderGame(); show('game');
+};
+$('#next-round').onclick = () => {
+  if ($('#board .cell:not(:disabled)') && !confirm('В раунде остались вопросы. Всё равно дальше?')) return;
+  if (state.ri + 1 < pack.rounds.length) { state.ri++; renderGame(); } else startFinal();
+};
+$('#g-menu').onclick = () => confirm('Выйти из игры? Счёт пропадёт.') && show('menu');
+$('#b-export').onclick = () => {
+  const a = el('a', {href: URL.createObjectURL(new Blob([JSON.stringify(pack)], {type: 'application/json'})), download: 'svoya-igra-pack.json'});
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('#import').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f || !confirm('Заменить текущие вопросы вопросами из файла?')) return;
+  try {
+    const p = JSON.parse(await f.text());
+    if (!Array.isArray(p.rounds)) throw 0;
+    p.final ??= {theme: '', text: '', answer: '', img: ''};
+    pack = p; save(); alert('Пак загружен');
+  } catch { alert('Это не файл пака'); }
+};
+
+idb('readonly', s => s.get('pack')).catch(() => null).then(p => { pack = p || defaultPack(); });
+</script>
+</body>
+</html>
