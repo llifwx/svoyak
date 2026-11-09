@@ -18,7 +18,7 @@ const show = id => document.querySelectorAll('.screen').forEach(s => s.classList
 const TYPES = {normal: 'Обычный', cat: 'Кот в мешке', x2: 'Двойная ставка', safe: 'Без риска',
   flip: 'Плюс на минус', swap: 'Обмен счётом', gift: 'Подарок'};
 const NOQ = ['flip', 'swap', 'gift']; // модификаторы вместо вопроса — текст не нужен
-const has = q => q && (q.text || q.img || NOQ.includes(q.type));
+const has = q => q && (q.text || q.img || q.audio || NOQ.includes(q.type));
 
 /* ---------- хранение: IndexedDB (картинки не влезут в localStorage) ---------- */
 const db = new Promise((res, rej) => {
@@ -87,6 +87,21 @@ function imgPicker(obj, key = 'img', label = 'Фото') {
   }});
   return el('div', {class: 'img-pick'}, wrap, el('label', {class: 'pick'}, ico('ImagePlus'), label, file));
 }
+const readURL = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+function audioPicker(obj, key, label = 'Звук') {
+  const player = new Audio(obj[key] || '');
+  const play = el('button', {className: 'ghost', title: 'Прослушать', onclick: () => player.paused ? player.play() : player.pause()}, ico('Play'));
+  const wrap = el('div', {class: 'audwrap' + (obj[key] ? '' : ' hidden')}, play,
+    el('button', {className: 'bad', title: 'Убрать звук', onclick: () => { player.pause(); obj[key] = ''; save(); wrap.classList.add('hidden'); }}, ico('X')));
+  const file = el('input', {type: 'file', accept: 'audio/*', hidden: true, onchange: async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    if (f.size > 10 * 1024 * 1024) return alert('Файл больше 10 МБ — вырежьте отрывок покороче');
+    try { obj[key] = await readURL(f); } catch { return alert('Не получилось прочитать файл'); }
+    save(); player.src = obj[key]; wrap.classList.remove('hidden');
+  }});
+  return el('div', {class: 'img-pick'}, wrap, el('label', {class: 'pick'}, ico('Music'), label, file));
+}
+const media = (obj, img, aud) => el('div', {class: 'media'}, imgPicker(obj, img), audioPicker(obj, aud));
 function renderEditor() {
   const rerender = () => { save(); renderEditor(); };
   $('#ed').replaceChildren(
@@ -98,14 +113,14 @@ function renderEditor() {
         el('div', {class: 'row'}, inp(t, 'name', `Тема ${ti + 1}`),
           btn([ico('Plus'), 'вопрос'], 'ghost', () => { t.qs.push(newQ((t.qs.at(-1)?.price || 0) + 100 * (ri + 1))); rerender(); }),
           btn([ico('Trash2'), 'Тема'], 'del', () => confirm('Удалить тему?') && (r.themes.splice(ti, 1), rerender()))),
-        el('div', {class: 'q qh'}, ...['Цена', 'Тип', 'Вопрос', 'Ответ', 'Фото вопроса', 'Фото ответа'].map(s => el('span', {}, s))),
+        el('div', {class: 'q qh'}, ...['Цена', 'Тип', 'Вопрос', 'Ответ', 'Медиа вопроса', 'Медиа ответа'].map(s => el('span', {}, s))),
         ...t.qs.map((q, qi) => el('div', {class: 'q'},
-          inp(q, 'price', 'Цена', 'number'), typeSel(q), area(q, 'text', 'Вопрос'), area(q, 'answer', 'Ответ'), imgPicker(q), imgPicker(q, 'aimg', 'Ответ'),
+          inp(q, 'price', 'Цена', 'number'), typeSel(q), area(q, 'text', 'Вопрос'), area(q, 'answer', 'Ответ'), media(q, 'img', 'audio'), media(q, 'aimg', 'aaudio'),
           el('button', {className: 'del', title: 'Удалить вопрос', onclick: () => confirm('Удалить вопрос?') && (t.qs.splice(qi, 1), rerender())}, ico('Trash2')))))))),
     btn([ico('Plus'), 'Добавить раунд'], 'addround', () => { pack.rounds.push(newRound(pack.rounds.length + 1)); rerender(); }),
     el('section', {class: 'card'}, el('h2', {}, 'Финал'),
       el('div', {class: 'q', style: 'grid-template-columns:1fr 1fr 1fr 120px 120px;margin-left:0'},
-        inp(pack.final, 'theme', 'Тема финала'), area(pack.final, 'text', 'Вопрос'), area(pack.final, 'answer', 'Ответ'), imgPicker(pack.final), imgPicker(pack.final, 'aimg', 'Ответ')))
+        inp(pack.final, 'theme', 'Тема финала'), area(pack.final, 'text', 'Вопрос'), area(pack.final, 'answer', 'Ответ'), media(pack.final, 'img', 'audio'), media(pack.final, 'aimg', 'aaudio')))
   );
 }
 
@@ -119,7 +134,7 @@ function renderSetup() {
 
 /* ---------- игра ---------- */
 let state;
-const closeModal = () => { $('#modal').classList.add('hidden'); buzzStop(); };
+const closeModal = () => { $('#modal').classList.add('hidden'); $('#mbody').replaceChildren(); buzzStop(); }; // очистка останавливает звук
 const modal = (...kids) => { $('#mbody').replaceChildren(...kids); $('#modal').classList.remove('hidden'); };
 const lock = node => node.querySelectorAll('button').forEach(b => b.disabled = true);
 
@@ -171,7 +186,7 @@ function openQ(t, q, key) {
 }
 function ask(t, q, players, price, done, safe = false) {
   const ans = answerBox(q);
-  const reveal = () => ans.classList.remove('hidden');
+  const reveal = () => showAnswer(ans);
   let left = players.length;
   const rows = new Map();
   const judge = el('div', {class: 'judge'}, ...players.map(p => {
@@ -184,6 +199,7 @@ function ask(t, q, players, price, done, safe = false) {
   modal(el('div', {class: 'qhead'}, `${t.name} · ${price}`),
     q.text && el('div', {class: 'qtext'}, q.text),
     q.img && el('img', {className: 'qimg', src: q.img}),
+    q.audio && el('audio', {className: 'qaudio', src: q.audio, controls: true, autoplay: true}),
     ans,
     el('div', {class: 'mfoot'}, judge,
       el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', reveal), btn('Закрыть вопрос', '', done))));
@@ -258,7 +274,15 @@ function phone(id) {
   p.on('error', e => status('Ошибка: ' + e.type + ' — обновите страницу'));
 }
 // ответ с картинкой; при показе картинка ответа заменяет картинку вопроса (см. CSS :has)
-const answerBox = q => el('div', {class: 'answer hidden'}, el('div', {}, 'Ответ: ' + (q.answer || '—')), q.aimg && el('img', {className: 'aimg', src: q.aimg}));
+const answerBox = q => el('div', {class: 'answer hidden'}, el('div', {}, 'Ответ: ' + (q.answer || '—')),
+  q.aimg && el('img', {className: 'aimg', src: q.aimg}), q.aaudio && el('audio', {src: q.aaudio, controls: true}));
+// показать ответ: звук вопроса стоп, звук ответа — играть (один раз)
+function showAnswer(ans) {
+  if (!ans.classList.contains('hidden')) return;
+  ans.classList.remove('hidden');
+  $('#mbody .qaudio')?.pause();
+  ans.querySelector('audio')?.play().catch(() => {});
+}
 function startFinal() {
   const f = pack.final, ps = state.players.filter(p => p.score > 0);
   if (!has(f) || !ps.length) return results();
@@ -273,6 +297,7 @@ function finalQ(f, ps, bets) {
   modal(el('div', {class: 'qhead'}, 'Финал · ' + (f.theme || '')),
     f.text && el('div', {class: 'qtext'}, f.text),
     f.img && el('img', {className: 'qimg', src: f.img}),
+    f.audio && el('audio', {className: 'qaudio', src: f.audio, controls: true, autoplay: true}),
     ans,
     el('div', {class: 'mfoot'},
       el('div', {class: 'judge'}, ...ps.map((p, i) => {
@@ -281,7 +306,7 @@ function finalQ(f, ps, bets) {
           btn([ico('X'), 'неверно'], 'bad', () => { p.score -= bets[i]; lock(row); }));
         return row;
       })),
-      el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', () => ans.classList.remove('hidden')), btn('Итоги', '', results))));
+      el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', () => showAnswer(ans)), btn('Итоги', '', results))));
 }
 function results() {
   closeModal();
