@@ -166,7 +166,10 @@ function el(tag, props = {}, ...kids) {
 }
 const btn = (text, cls, fn) => el('button', {class: cls, onclick: fn}, text);
 const show = id => document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
-const has = q => q && (q.text || q.img);
+const TYPES = {normal: 'Обычный', cat: '🐱 Кот в мешке', x2: '✖️2 Двойная ставка', safe: '🛡 Без риска',
+  flip: '🔄 Плюс на минус', swap: '🔀 Обмен счётом', gift: '🎁 Подарок'};
+const NOQ = ['flip', 'swap', 'gift']; // модификаторы вместо вопроса — текст не нужен
+const has = q => q && (q.text || q.img || NOQ.includes(q.type));
 
 /* ---------- хранение: IndexedDB (картинки не влезут в localStorage) ---------- */
 const db = new Promise((res, rej) => {
@@ -204,8 +207,8 @@ function area(obj, key, ph) {
 }
 function typeSel(q) {
   const s = el('select', {onchange: e => { q.type = e.target.value; save(); }},
-    el('option', {value: 'normal'}, 'Обычный'), el('option', {value: 'cat'}, '🐱 Кот в мешке'), el('option', {value: 'auction'}, '🔨 Аукцион'));
-  s.value = q.type;
+    ...Object.entries(TYPES).map(([v, label]) => el('option', {value: v}, label)));
+  s.value = q.type in TYPES ? q.type : 'normal';
   return s;
 }
 function shrink(file, max = 1280) {
@@ -300,24 +303,29 @@ function openQ(t, q, key) {
   if (q.type === 'cat') return modal(el('h2', {class: 'special'}, '🐱 Кот в мешке'), head,
     el('p', {}, 'Кому отдаёте вопрос?'),
     el('div', {class: 'row center'}, ...state.players.map(p => btn(p.name, '', () => ask(t, q, [p], q.price, done)))));
-  if (q.type === 'auction') {
-    const who = el('select', {}, ...state.players.map((p, i) => el('option', {value: i}, `${p.name} (${p.score})`)));
-    const stake = el('input', {type: 'number', value: q.price, min: 0});
-    return modal(el('h2', {class: 'special'}, '🔨 Аукцион'), head,
-      el('p', {}, 'Кто выиграл торги и какая ставка?'),
-      el('div', {class: 'row center'}, who, stake,
-        btn('Дальше', '', () => ask(t, q, [state.players[who.value]], Math.max(0, Number(stake.value) || 0), done))));
-  }
+  // модификаторы: экран-заставка и выбор игрока
+  const pick = (title, desc, fn, ps = state.players) => modal(el('h2', {class: 'special'}, title), head,
+    el('p', {class: 'qtext'}, desc),
+    el('div', {class: 'row center'}, ...ps.map(p => btn(`${p.name} (${p.score})`, '', () => fn(p)))));
+  const intro = (title, desc, next) => modal(el('h2', {class: 'special'}, title), head,
+    el('p', {class: 'qtext'}, desc), btn('Показать вопрос', '', next));
+  if (q.type === 'flip') return pick('🔄 Плюс на минус', 'У кого меняем знак счёта?', p => { p.score = -p.score; done(); });
+  if (q.type === 'gift') return pick('🎁 Подарок', `Кому дарим ${q.price}?`, p => { p.score += q.price; done(); });
+  if (q.type === 'swap') return pick('🔀 Обмен счётом', 'Кто меняется?', a =>
+    pick('🔀 Обмен счётом', `${a.name} меняется счётом с…`, b => { [a.score, b.score] = [b.score, a.score]; done(); },
+      state.players.filter(p => p !== a)));
+  if (q.type === 'x2') return intro('✖️2 Двойная ставка', `Вопрос стоит ${q.price * 2} — и в плюс, и в минус`, () => ask(t, q, state.players, q.price * 2, done));
+  if (q.type === 'safe') return intro('🛡 Без риска', 'За неверный ответ баллы не снимаются', () => ask(t, q, state.players, q.price, done, true));
   ask(t, q, state.players, q.price, done);
 }
-function ask(t, q, players, price, done) {
+function ask(t, q, players, price, done, safe = false) {
   const ans = el('div', {class: 'answer hidden'}, 'Ответ: ' + (q.answer || '—'));
   const reveal = () => ans.classList.remove('hidden');
   let left = players.length;
   const judge = el('div', {class: 'judge'}, ...players.map(p => {
     const row = el('div', {class: 'jrow'}, el('span', {}, p.name),
       btn(`✓ +${price}`, 'ok', () => { p.score += price; lock(judge); reveal(); renderScores(); }),
-      btn(`✗ −${price}`, 'bad', () => { p.score -= price; lock(row); renderScores(); if (--left === 0) reveal(); }));
+      btn(safe ? '✗ мимо' : `✗ −${price}`, 'bad', () => { if (!safe) p.score -= price; lock(row); renderScores(); if (--left === 0) reveal(); }));
     return row;
   }));
   modal(el('div', {class: 'qhead'}, `${t.name} · ${price}`),
