@@ -76,16 +76,16 @@ function shrink(file, max = 1280) {
     img.src = URL.createObjectURL(file);
   });
 }
-function imgPicker(obj) {
-  const prev = el('img', {className: 'thumb', src: obj.img || ''});
-  const wrap = el('div', {class: 'thumbwrap' + (obj.img ? '' : ' hidden')}, prev,
-    el('button', {className: 'bad', title: 'Убрать картинку', onclick: () => { obj.img = ''; save(); wrap.classList.add('hidden'); }}, ico('X')));
+function imgPicker(obj, key = 'img', label = 'Фото') {
+  const prev = el('img', {className: 'thumb', src: obj[key] || ''});
+  const wrap = el('div', {class: 'thumbwrap' + (obj[key] ? '' : ' hidden')}, prev,
+    el('button', {className: 'bad', title: 'Убрать картинку', onclick: () => { obj[key] = ''; save(); wrap.classList.add('hidden'); }}, ico('X')));
   const file = el('input', {type: 'file', accept: 'image/*', hidden: true, onchange: async e => {
     const f = e.target.files[0]; if (!f) return;
-    try { obj.img = await shrink(f); } catch { return alert('Не получилось открыть картинку'); }
-    save(); prev.src = obj.img; wrap.classList.remove('hidden'); e.target.value = '';
+    try { obj[key] = await shrink(f); } catch { return alert('Не получилось открыть картинку'); }
+    save(); prev.src = obj[key]; wrap.classList.remove('hidden'); e.target.value = '';
   }});
-  return el('div', {class: 'img-pick'}, wrap, el('label', {class: 'pick'}, ico('ImagePlus'), 'Фото', file));
+  return el('div', {class: 'img-pick'}, wrap, el('label', {class: 'pick'}, ico('ImagePlus'), label, file));
 }
 function renderEditor() {
   const rerender = () => { save(); renderEditor(); };
@@ -98,14 +98,14 @@ function renderEditor() {
         el('div', {class: 'row'}, inp(t, 'name', `Тема ${ti + 1}`),
           btn([ico('Plus'), 'вопрос'], 'ghost', () => { t.qs.push(newQ((t.qs.at(-1)?.price || 0) + 100 * (ri + 1))); rerender(); }),
           btn([ico('Trash2'), 'Тема'], 'del', () => confirm('Удалить тему?') && (r.themes.splice(ti, 1), rerender()))),
-        el('div', {class: 'q qh'}, ...['Цена', 'Тип', 'Вопрос', 'Ответ', 'Картинка'].map(s => el('span', {}, s))),
+        el('div', {class: 'q qh'}, ...['Цена', 'Тип', 'Вопрос', 'Ответ', 'Фото вопроса', 'Фото ответа'].map(s => el('span', {}, s))),
         ...t.qs.map((q, qi) => el('div', {class: 'q'},
-          inp(q, 'price', 'Цена', 'number'), typeSel(q), area(q, 'text', 'Вопрос'), area(q, 'answer', 'Ответ'), imgPicker(q),
+          inp(q, 'price', 'Цена', 'number'), typeSel(q), area(q, 'text', 'Вопрос'), area(q, 'answer', 'Ответ'), imgPicker(q), imgPicker(q, 'aimg', 'Ответ'),
           el('button', {className: 'del', title: 'Удалить вопрос', onclick: () => confirm('Удалить вопрос?') && (t.qs.splice(qi, 1), rerender())}, ico('Trash2')))))))),
     btn([ico('Plus'), 'Добавить раунд'], 'addround', () => { pack.rounds.push(newRound(pack.rounds.length + 1)); rerender(); }),
     el('section', {class: 'card'}, el('h2', {}, 'Финал'),
-      el('div', {class: 'q', style: 'grid-template-columns:1fr 1fr 1fr auto;margin-left:0'},
-        inp(pack.final, 'theme', 'Тема финала'), area(pack.final, 'text', 'Вопрос'), area(pack.final, 'answer', 'Ответ'), imgPicker(pack.final)))
+      el('div', {class: 'q', style: 'grid-template-columns:1fr 1fr 1fr 120px 120px;margin-left:0'},
+        inp(pack.final, 'theme', 'Тема финала'), area(pack.final, 'text', 'Вопрос'), area(pack.final, 'answer', 'Ответ'), imgPicker(pack.final), imgPicker(pack.final, 'aimg', 'Ответ')))
   );
 }
 
@@ -170,7 +170,7 @@ function openQ(t, q, key) {
   ask(t, q, state.players, q.price, done);
 }
 function ask(t, q, players, price, done, safe = false) {
-  const ans = el('div', {class: 'answer hidden'}, 'Ответ: ' + (q.answer || '—'));
+  const ans = answerBox(q);
   const reveal = () => ans.classList.remove('hidden');
   let left = players.length;
   const rows = new Map();
@@ -257,6 +257,8 @@ function phone(id) {
   });
   p.on('error', e => status('Ошибка: ' + e.type + ' — обновите страницу'));
 }
+// ответ с картинкой; при показе картинка ответа заменяет картинку вопроса (см. CSS :has)
+const answerBox = q => el('div', {class: 'answer hidden'}, el('div', {}, 'Ответ: ' + (q.answer || '—')), q.aimg && el('img', {className: 'aimg', src: q.aimg}));
 function startFinal() {
   const f = pack.final, ps = state.players.filter(p => p.score > 0);
   if (!has(f) || !ps.length) return results();
@@ -267,7 +269,7 @@ function startFinal() {
     btn('Показать вопрос', '', () => finalQ(f, ps, bets.map((x, i) => Math.min(ps[i].score, Math.max(0, Number(x.value) || 0))))));
 }
 function finalQ(f, ps, bets) {
-  const ans = el('div', {class: 'answer hidden'}, 'Ответ: ' + (f.answer || '—'));
+  const ans = answerBox(f);
   modal(el('div', {class: 'qhead'}, 'Финал · ' + (f.theme || '')),
     f.text && el('div', {class: 'qtext'}, f.text),
     f.img && el('img', {className: 'qimg', src: f.img}),
