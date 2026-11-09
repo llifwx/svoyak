@@ -110,6 +110,17 @@ main{padding:0 16px 40px;max-width:1100px;margin:auto}
 #res{display:flex;flex-direction:column;gap:10px;align-items:center}
 .res{font-size:24px;font-weight:700;padding:10px 24px;border-radius:14px;background:var(--card);border:1px solid var(--line);min-width:min(420px,90vw);text-align:center}
 .win{font-size:clamp(28px,5vw,44px);color:#2a1c00;background:linear-gradient(180deg,#ffe27a,var(--gold2));border:0;box-shadow:0 0 50px -6px rgba(255,190,40,.6);animation:pop .5s}
+/* кнопки на телефонах */
+.jrow.first{border-color:var(--gold);background:rgba(255,213,74,.14);box-shadow:0 0 0 2px var(--gold),0 0 30px rgba(255,200,60,.4);animation:pop .3s}
+.jrow.first span::before{content:'🔔 '}
+.qr{background:#fff;padding:12px;border-radius:16px;width:min(320px,70vw)}
+.qr svg{display:block;width:100%;height:auto}
+.link{color:var(--muted);word-break:break-all}
+#bz-status{text-align:center}
+.bigbuzz{width:min(72vw,320px);aspect-ratio:1;border-radius:50%;font-size:72px;padding:0;
+  background:radial-gradient(circle at 50% 35%,#ff7b7b,#d0242b 70%);box-shadow:0 14px 0 #7a0f14,0 24px 40px -10px #000;transition:transform .05s,box-shadow .05s}
+.bigbuzz:active:not(:disabled){transform:translateY(10px);box-shadow:0 4px 0 #7a0f14}
+.bigbuzz:disabled{filter:grayscale(1);opacity:.45}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -138,7 +149,7 @@ main{padding:0 16px 40px;max-width:1100px;margin:auto}
 </div>
 
 <div id="game" class="screen hidden">
-  <header><h1 id="round-name"></h1><button id="next-round">Следующий раунд →</button><button class="ghost" id="g-menu">Выйти</button></header>
+  <header><h1 id="round-name"></h1><button class="ghost" id="g-phones">📱 Телефоны</button><button id="next-round">Следующий раунд →</button><button class="ghost" id="g-menu">Выйти</button></header>
   <div id="board"></div>
   <div id="scores"></div>
 </div>
@@ -149,8 +160,15 @@ main{padding:0 16px 40px;max-width:1100px;margin:auto}
   <button data-menu>В меню</button>
 </div>
 
+<div id="buzzer" class="screen hidden center-screen">
+  <h2 id="bz-status">Подключаемся…</h2>
+  <div id="bz-body" class="center-screen" style="min-height:0"></div>
+</div>
+
 <div id="modal" class="hidden"><div id="mbody"></div></div>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 function el(tag, props = {}, ...kids) {
@@ -270,7 +288,7 @@ function renderSetup() {
 
 /* ---------- игра ---------- */
 let state;
-const closeModal = () => $('#modal').classList.add('hidden');
+const closeModal = () => { $('#modal').classList.add('hidden'); buzzStop(); };
 const modal = (...kids) => { $('#mbody').replaceChildren(...kids); $('#modal').classList.remove('hidden'); };
 const lock = node => node.querySelectorAll('button').forEach(b => b.disabled = true);
 
@@ -322,10 +340,12 @@ function ask(t, q, players, price, done, safe = false) {
   const ans = el('div', {class: 'answer hidden'}, 'Ответ: ' + (q.answer || '—'));
   const reveal = () => ans.classList.remove('hidden');
   let left = players.length;
+  const rows = new Map();
   const judge = el('div', {class: 'judge'}, ...players.map(p => {
     const row = el('div', {class: 'jrow'}, el('span', {}, p.name),
-      btn(`✓ +${price}`, 'ok', () => { p.score += price; lock(judge); reveal(); renderScores(); }),
-      btn(safe ? '✗ мимо' : `✗ −${price}`, 'bad', () => { if (!safe) p.score -= price; lock(row); renderScores(); if (--left === 0) reveal(); }));
+      btn(`✓ +${price}`, 'ok', () => { p.score += price; lock(judge); reveal(); renderScores(); buzzStop(); }),
+      btn(safe ? '✗ мимо' : `✗ −${price}`, 'bad', () => { if (!safe) p.score -= price; lock(row); row.classList.remove('first'); buzzOut(p); renderScores(); if (--left === 0) reveal(); }));
+    rows.set(p, row);
     return row;
   }));
   modal(el('div', {class: 'qhead'}, `${t.name} · ${price}`),
@@ -334,6 +354,75 @@ function ask(t, q, players, price, done, safe = false) {
     ans,
     el('div', {class: 'mfoot'}, judge,
       el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', reveal), btn('Закрыть вопрос', '', done))));
+  buzzStart(players, p => { rows.get(p).classList.add('first'); beep(); });
+}
+
+/* ---------- кнопки на телефонах (PeerJS: телефоны подключаются к ноутбуку напрямую) ---------- */
+let peer, conns = [], buzz = {open: false, first: null, out: new Set()};
+function sync() {
+  if (!state) return;
+  const m = {players: state.players.map(p => p.name), open: buzz.open && !buzz.first, first: buzz.first?.name ?? null, out: [...buzz.out].map(p => p.name)};
+  conns.forEach(c => c.open && c.send(m));
+}
+const buzzStart = (players, onFirst) => { buzz = {open: players.length > 1, first: null, out: new Set(), onFirst}; sync(); };
+const buzzStop = () => { buzz.open = false; sync(); };
+const buzzOut = p => { buzz.out.add(p); if (buzz.first === p) buzz.first = null; sync(); };
+function onBuzz(name) {
+  const p = state?.players.find(p => p.name === name);
+  if (!p || !buzz.open || buzz.first || buzz.out.has(p)) return; // кто первым дошёл до ноутбука — тот и первый
+  buzz.first = p; buzz.onFirst?.(p); sync();
+}
+function beep() {
+  try { const a = new AudioContext(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + .15); } catch {}
+}
+const phonesCount = () => { $('#g-phones').textContent = `📱 Телефоны: ${conns.length}`; const e = $('#pcount'); if (e) e.textContent = `Подключено: ${conns.length}`; };
+function phones() {
+  if (location.protocol === 'file:') return alert('Телефоны работают, только когда игра открыта по ссылке (Render), а не из файла');
+  if (!window.Peer || !window.qrcode) return alert('Не загрузились библиотеки — проверьте интернет');
+  if (!peer) {
+    peer = new Peer('svoyak-' + Math.random().toString(36).slice(2, 8));
+    peer.on('open', phones);
+    peer.on('error', e => alert('Ошибка связи с телефонами: ' + e.type));
+    peer.on('connection', c => {
+      c.on('open', () => { conns.push(c); phonesCount(); sync(); });
+      c.on('data', m => m?.buzz && onBuzz(m.buzz));
+      c.on('close', () => { conns = conns.filter(x => x !== c); phonesCount(); });
+    });
+    return modal(el('h2', {class: 'special'}, '📱 Телефоны'), el('p', {}, 'Подключаемся…'));
+  }
+  if (!peer.id) return;
+  const url = location.origin + location.pathname + '?join=' + peer.id;
+  const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  const box = el('div', {class: 'qr'}); box.innerHTML = qr.createSvgTag({cellSize: 8, margin: 2, scalable: true});
+  modal(el('h2', {class: 'special'}, '📱 Телефоны'), el('p', {}, 'Отсканируйте камерой телефона и выберите себя'), box,
+    el('a', {href: url, target: '_blank', class: 'link'}, url), el('p', {id: 'pcount'}, `Подключено: ${conns.length}`), btn('Готово', '', closeModal));
+}
+
+/* ---------- экран телефона (?join=ID) ---------- */
+function phone(id) {
+  show('buzzer');
+  let me = null, st = {players: [], out: []}, conn;
+  const status = t => $('#bz-status').textContent = t;
+  const render = () => {
+    if (!st.players.includes(me)) {
+      me = null; status('Кто вы?');
+      return $('#bz-body').replaceChildren(el('div', {class: 'menu-btns'}, ...st.players.map(n => btn(n, 'ghost', () => { me = n; render(); }))));
+    }
+    const can = st.open && !st.out.includes(me);
+    status(st.first ? (st.first === me ? 'Ты первый! 🎉' : 'Первым: ' + st.first) : can ? 'Жми!' : 'Ждём вопрос…');
+    $('#bz-body').replaceChildren(el('div', {class: 'pname'}, me),
+      el('button', {class: 'bigbuzz', disabled: !can, onclick: () => { navigator.vibrate?.(60); conn.send({buzz: me}); }}, '🔔'),
+      btn('сменить игрока', 'ghost', () => { me = null; render(); }));
+  };
+  if (!window.Peer) return status('Нет интернета — обновите страницу');
+  const p = new Peer();
+  p.on('open', () => {
+    conn = p.connect(id, {reliable: true});
+    conn.on('open', () => status('Подключено, ждём игру…'));
+    conn.on('data', m => { st = m; render(); });
+    conn.on('close', () => status('Связь потеряна — обновите страницу'));
+  });
+  p.on('error', e => status('Ошибка: ' + e.type + ' — обновите страницу'));
 }
 function startFinal() {
   const f = pack.final, ps = state.players.filter(p => p.score > 0);
@@ -378,8 +467,9 @@ $('#p-go').onclick = () => {
   const ps = names.map(n => n.trim()).filter(Boolean);
   if (!ps.length) return alert('Добавьте хотя бы одного игрока');
   state = {players: ps.map(name => ({name, score: 0})), ri: 0, used: new Set()};
-  renderGame(); show('game');
+  renderGame(); show('game'); sync();
 };
+$('#g-phones').onclick = phones;
 $('#next-round').onclick = () => {
   if ($('#board .cell:not(:disabled)') && !confirm('В раунде остались вопросы. Всё равно дальше?')) return;
   if (state.ri + 1 < pack.rounds.length) { state.ri++; renderGame(); } else startFinal();
@@ -401,6 +491,8 @@ $('#import').onchange = async e => {
 };
 
 idb('readonly', s => s.get('pack')).catch(() => null).then(p => { pack = p || defaultPack(); });
+const joinId = new URLSearchParams(location.search).get('join');
+if (joinId) phone(joinId);
 </script>
 </body>
 </html>
