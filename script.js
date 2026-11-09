@@ -11,9 +11,12 @@ function el(tag, props = {}, ...kids) {
   return e;
 }
 const btn = (text, cls, fn) => el('button', {class: cls, onclick: fn}, text);
+// иконки Lucide (SVG); без интернета просто не рисуются
+const ico = n => { if (!window.lucide) return ''; const s = lucide.createElement(lucide.icons[n]); s.classList.add('lucide'); return s; };
+const special = (icon, text) => el('div', {class: 'sp'}, el('div', {class: 'badge'}, ico(icon)), el('h2', {class: 'special'}, text));
 const show = id => document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
-const TYPES = {normal: 'Обычный', cat: '🐱 Кот в мешке', x2: '✖️2 Двойная ставка', safe: '🛡 Без риска',
-  flip: '🔄 Плюс на минус', swap: '🔀 Обмен счётом', gift: '🎁 Подарок'};
+const TYPES = {normal: 'Обычный', cat: 'Кот в мешке', x2: 'Двойная ставка', safe: 'Без риска',
+  flip: 'Плюс на минус', swap: 'Обмен счётом', gift: 'Подарок'};
 const NOQ = ['flip', 'swap', 'gift']; // модификаторы вместо вопроса — текст не нужен
 const has = q => q && (q.text || q.img || NOQ.includes(q.type));
 
@@ -76,30 +79,30 @@ function shrink(file, max = 1280) {
 function imgPicker(obj) {
   const prev = el('img', {className: 'thumb', src: obj.img || ''});
   const wrap = el('div', {class: 'thumbwrap' + (obj.img ? '' : ' hidden')}, prev,
-    el('button', {className: 'bad', title: 'Убрать картинку', onclick: () => { obj.img = ''; save(); wrap.classList.add('hidden'); }}, '✕'));
+    el('button', {className: 'bad', title: 'Убрать картинку', onclick: () => { obj.img = ''; save(); wrap.classList.add('hidden'); }}, ico('X')));
   const file = el('input', {type: 'file', accept: 'image/*', hidden: true, onchange: async e => {
     const f = e.target.files[0]; if (!f) return;
     try { obj.img = await shrink(f); } catch { return alert('Не получилось открыть картинку'); }
     save(); prev.src = obj.img; wrap.classList.remove('hidden'); e.target.value = '';
   }});
-  return el('div', {class: 'img-pick'}, wrap, el('label', {class: 'pick'}, '🖼 Фото', file));
+  return el('div', {class: 'img-pick'}, wrap, el('label', {class: 'pick'}, ico('ImagePlus'), 'Фото', file));
 }
 function renderEditor() {
   const rerender = () => { save(); renderEditor(); };
   $('#ed').replaceChildren(
     ...pack.rounds.map((r, ri) => el('section', {class: 'card'},
       el('div', {class: 'row'}, inp(r, 'name', 'Название раунда'),
-        btn('+ тема', 'ghost', () => { r.themes.push(newTheme(ri + 1)); rerender(); }),
-        btn('🗑 Раунд', 'del', () => confirm(`Удалить «${r.name}» со всеми вопросами?`) && (pack.rounds.splice(ri, 1), rerender()))),
+        btn([ico('Plus'), 'тема'], 'ghost', () => { r.themes.push(newTheme(ri + 1)); rerender(); }),
+        btn([ico('Trash2'), 'Раунд'], 'del', () => confirm(`Удалить «${r.name}» со всеми вопросами?`) && (pack.rounds.splice(ri, 1), rerender()))),
       ...r.themes.map((t, ti) => el('div', {class: 'theme'},
         el('div', {class: 'row'}, inp(t, 'name', `Тема ${ti + 1}`),
-          btn('+ вопрос', 'ghost', () => { t.qs.push(newQ((t.qs.at(-1)?.price || 0) + 100 * (ri + 1))); rerender(); }),
-          btn('🗑 Тема', 'del', () => confirm('Удалить тему?') && (r.themes.splice(ti, 1), rerender()))),
+          btn([ico('Plus'), 'вопрос'], 'ghost', () => { t.qs.push(newQ((t.qs.at(-1)?.price || 0) + 100 * (ri + 1))); rerender(); }),
+          btn([ico('Trash2'), 'Тема'], 'del', () => confirm('Удалить тему?') && (r.themes.splice(ti, 1), rerender()))),
         el('div', {class: 'q qh'}, ...['Цена', 'Тип', 'Вопрос', 'Ответ', 'Картинка'].map(s => el('span', {}, s))),
         ...t.qs.map((q, qi) => el('div', {class: 'q'},
           inp(q, 'price', 'Цена', 'number'), typeSel(q), area(q, 'text', 'Вопрос'), area(q, 'answer', 'Ответ'), imgPicker(q),
-          el('button', {className: 'del', title: 'Удалить вопрос', onclick: () => confirm('Удалить вопрос?') && (t.qs.splice(qi, 1), rerender())}, '✕'))))))),
-    btn('+ Добавить раунд', 'addround', () => { pack.rounds.push(newRound(pack.rounds.length + 1)); rerender(); }),
+          el('button', {className: 'del', title: 'Удалить вопрос', onclick: () => confirm('Удалить вопрос?') && (t.qs.splice(qi, 1), rerender())}, ico('Trash2')))))))),
+    btn([ico('Plus'), 'Добавить раунд'], 'addround', () => { pack.rounds.push(newRound(pack.rounds.length + 1)); rerender(); }),
     el('section', {class: 'card'}, el('h2', {}, 'Финал'),
       el('div', {class: 'q', style: 'grid-template-columns:1fr 1fr 1fr auto;margin-left:0'},
         inp(pack.final, 'theme', 'Тема финала'), area(pack.final, 'text', 'Вопрос'), area(pack.final, 'answer', 'Ответ'), imgPicker(pack.final)))
@@ -111,7 +114,7 @@ let names = ['Игрок 1', 'Игрок 2', 'Игрок 3'];
 function renderSetup() {
   $('#plist').replaceChildren(...names.map((n, i) => el('div', {class: 'row'},
     el('input', {value: n, oninput: e => names[i] = e.target.value}),
-    btn('✕', 'bad', () => { names.splice(i, 1); renderSetup(); }))));
+    btn(ico('X'), 'bad', () => { names.splice(i, 1); renderSetup(); }))));
 }
 
 /* ---------- игра ---------- */
@@ -121,15 +124,17 @@ const modal = (...kids) => { $('#mbody').replaceChildren(...kids); $('#modal').c
 const lock = node => node.querySelectorAll('button').forEach(b => b.disabled = true);
 
 function renderScores() {
-  $('#scores').replaceChildren(...state.players.map(p => el('div', {class: 'player'},
+  const top = Math.max(...state.players.map(p => p.score));
+  $('#scores').replaceChildren(...state.players.map(p => el('div', {class: 'player' + (top > 0 && p.score === top ? ' lead' : '')},
+    top > 0 && p.score === top && el('div', {class: 'crown'}, ico('Crown')),
     el('div', {class: 'pname'}, p.name),
     el('input', {type: 'number', className: 'pscore', value: p.score, title: 'Можно поправить вручную',
-      onchange: e => p.score = Number(e.target.value) || 0}))));
+      onchange: e => { p.score = Number(e.target.value) || 0; renderScores(); }}))));
 }
 function renderGame() {
   const r = pack.rounds[state.ri];
   $('#round-name').textContent = r.name;
-  $('#next-round').textContent = state.ri + 1 < pack.rounds.length ? 'Следующий раунд →' : (has(pack.final) ? 'К финалу →' : 'Завершить игру →');
+  $('#next-round').replaceChildren(state.ri + 1 < pack.rounds.length ? 'Следующий раунд' : (has(pack.final) ? 'К финалу' : 'Завершить игру'), ico('ArrowRight'));
   const themes = r.themes.map((t, ti) => [t, ti]).filter(([t]) => t.qs.some(has));
   const n = Math.max(1, ...themes.map(([t]) => t.qs.length));
   const b = $('#board');
@@ -146,22 +151,22 @@ function renderGame() {
 function openQ(t, q, key) {
   const done = () => { state.used.add(key); closeModal(); renderGame(); };
   const head = el('div', {class: 'qhead'}, `${t.name} · ${q.price}`);
-  if (q.type === 'cat') return modal(el('h2', {class: 'special'}, '🐱 Кот в мешке'), head,
+  if (q.type === 'cat') return modal(special('Cat', 'Кот в мешке'), head,
     el('p', {}, 'Кому отдаёте вопрос?'),
     el('div', {class: 'row center'}, ...state.players.map(p => btn(p.name, '', () => ask(t, q, [p], q.price, done)))));
   // модификаторы: экран-заставка и выбор игрока
-  const pick = (title, desc, fn, ps = state.players) => modal(el('h2', {class: 'special'}, title), head,
+  const pick = (icon, title, desc, fn, ps = state.players) => modal(special(icon, title), head,
     el('p', {class: 'qtext'}, desc),
     el('div', {class: 'row center'}, ...ps.map(p => btn(`${p.name} (${p.score})`, '', () => fn(p)))));
-  const intro = (title, desc, next) => modal(el('h2', {class: 'special'}, title), head,
+  const intro = (icon, title, desc, next) => modal(special(icon, title), head,
     el('p', {class: 'qtext'}, desc), btn('Показать вопрос', '', next));
-  if (q.type === 'flip') return pick('🔄 Плюс на минус', 'У кого меняем знак счёта?', p => { p.score = -p.score; done(); });
-  if (q.type === 'gift') return pick('🎁 Подарок', `Кому дарим ${q.price}?`, p => { p.score += q.price; done(); });
-  if (q.type === 'swap') return pick('🔀 Обмен счётом', 'Кто меняется?', a =>
-    pick('🔀 Обмен счётом', `${a.name} меняется счётом с…`, b => { [a.score, b.score] = [b.score, a.score]; done(); },
+  if (q.type === 'flip') return pick('Diff', 'Плюс на минус', 'У кого меняем знак счёта?', p => { p.score = -p.score; done(); });
+  if (q.type === 'gift') return pick('Gift', 'Подарок', `Кому дарим ${q.price}?`, p => { p.score += q.price; done(); });
+  if (q.type === 'swap') return pick('ArrowLeftRight', 'Обмен счётом', 'Кто меняется?', a =>
+    pick('ArrowLeftRight', 'Обмен счётом', `${a.name} меняется счётом с…`, b => { [a.score, b.score] = [b.score, a.score]; done(); },
       state.players.filter(p => p !== a)));
-  if (q.type === 'x2') return intro('✖️2 Двойная ставка', `Вопрос стоит ${q.price * 2} — и в плюс, и в минус`, () => ask(t, q, state.players, q.price * 2, done));
-  if (q.type === 'safe') return intro('🛡 Без риска', 'За неверный ответ баллы не снимаются', () => ask(t, q, state.players, q.price, done, true));
+  if (q.type === 'x2') return intro('Zap', 'Двойная ставка', `Вопрос стоит ${q.price * 2} — и в плюс, и в минус`, () => ask(t, q, state.players, q.price * 2, done));
+  if (q.type === 'safe') return intro('ShieldCheck', 'Без риска', 'За неверный ответ баллы не снимаются', () => ask(t, q, state.players, q.price, done, true));
   ask(t, q, state.players, q.price, done);
 }
 function ask(t, q, players, price, done, safe = false) {
@@ -171,8 +176,8 @@ function ask(t, q, players, price, done, safe = false) {
   const rows = new Map();
   const judge = el('div', {class: 'judge'}, ...players.map(p => {
     const row = el('div', {class: 'jrow'}, el('span', {}, p.name),
-      btn(`✓ +${price}`, 'ok', () => { p.score += price; lock(judge); reveal(); renderScores(); buzzStop(); }),
-      btn(safe ? '✗ мимо' : `✗ −${price}`, 'bad', () => { if (!safe) p.score -= price; lock(row); row.classList.remove('first'); buzzOut(p); renderScores(); if (--left === 0) reveal(); }));
+      btn([ico('Check'), `+${price}`], 'ok', () => { p.score += price; lock(judge); reveal(); renderScores(); buzzStop(); }),
+      btn([ico('X'), safe ? 'мимо' : `−${price}`], 'bad', () => { if (!safe) p.score -= price; lock(row); row.classList.remove('first'); buzzOut(p); renderScores(); if (--left === 0) reveal(); }));
     rows.set(p, row);
     return row;
   }));
@@ -203,7 +208,7 @@ function onBuzz(name) {
 function beep() {
   try { const a = new AudioContext(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + .15); } catch {}
 }
-const phonesCount = () => { $('#g-phones').textContent = `📱 Телефоны: ${conns.length}`; const e = $('#pcount'); if (e) e.textContent = `Подключено: ${conns.length}`; };
+const phonesCount = () => { $('#g-phones').replaceChildren(ico('Smartphone'), `Телефоны: ${conns.length}`); const e = $('#pcount'); if (e) e.textContent = `Подключено: ${conns.length}`; };
 function phones() {
   if (location.protocol === 'file:') return alert('Телефоны работают, только когда игра открыта по ссылке (Render), а не из файла');
   if (!window.Peer || !window.qrcode) return alert('Не загрузились библиотеки — проверьте интернет');
@@ -216,13 +221,13 @@ function phones() {
       c.on('data', m => m?.buzz && onBuzz(m.buzz));
       c.on('close', () => { conns = conns.filter(x => x !== c); phonesCount(); });
     });
-    return modal(el('h2', {class: 'special'}, '📱 Телефоны'), el('p', {}, 'Подключаемся…'));
+    return modal(special('Smartphone', 'Телефоны'), el('p', {}, 'Подключаемся…'));
   }
   if (!peer.id) return;
   const url = location.origin + location.pathname + '?join=' + peer.id;
   const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
   const box = el('div', {class: 'qr'}); box.innerHTML = qr.createSvgTag({cellSize: 8, margin: 2, scalable: true});
-  modal(el('h2', {class: 'special'}, '📱 Телефоны'), el('p', {}, 'Отсканируйте камерой телефона и выберите себя'), box,
+  modal(special('Smartphone', 'Телефоны'), el('p', {}, 'Отсканируйте камерой телефона и выберите себя'), box,
     el('a', {href: url, target: '_blank', class: 'link'}, url), el('p', {id: 'pcount'}, `Подключено: ${conns.length}`), btn('Готово', '', closeModal));
 }
 
@@ -237,9 +242,9 @@ function phone(id) {
       return $('#bz-body').replaceChildren(el('div', {class: 'menu-btns'}, ...st.players.map(n => btn(n, 'ghost', () => { me = n; render(); }))));
     }
     const can = st.open && !st.out.includes(me);
-    status(st.first ? (st.first === me ? 'Ты первый! 🎉' : 'Первым: ' + st.first) : can ? 'Жми!' : 'Ждём вопрос…');
+    status(st.first ? (st.first === me ? 'Ты первый!' : 'Первым: ' + st.first) : can ? 'Жми!' : 'Ждём вопрос…');
     $('#bz-body').replaceChildren(el('div', {class: 'pname'}, me),
-      el('button', {class: 'bigbuzz', disabled: !can, onclick: () => { navigator.vibrate?.(60); conn.send({buzz: me}); }}, '🔔'),
+      el('button', {class: 'bigbuzz', disabled: !can, onclick: () => { navigator.vibrate?.(60); conn.send({buzz: me}); }}, ico('BellRing')),
       btn('сменить игрока', 'ghost', () => { me = null; render(); }));
   };
   if (!window.Peer) return status('Нет интернета — обновите страницу');
@@ -256,7 +261,7 @@ function startFinal() {
   const f = pack.final, ps = state.players.filter(p => p.score > 0);
   if (!has(f) || !ps.length) return results();
   const bets = ps.map(p => el('input', {type: 'number', min: 0, max: p.score, value: 0}));
-  modal(el('h2', {class: 'special'}, 'Финал'), el('div', {class: 'qtext'}, 'Тема: ' + (f.theme || '—')),
+  modal(special('Sparkles', 'Финал'), el('div', {class: 'qtext'}, 'Тема: ' + (f.theme || '—')),
     el('p', {}, 'Ставки (от 0 до своего счёта). Игроки с 0 и минусом не участвуют.'),
     el('div', {class: 'judge'}, ...ps.map((p, i) => el('div', {class: 'jrow'}, el('span', {}, `${p.name} (${p.score})`), bets[i]))),
     btn('Показать вопрос', '', () => finalQ(f, ps, bets.map((x, i) => Math.min(ps[i].score, Math.max(0, Number(x.value) || 0))))));
@@ -270,8 +275,8 @@ function finalQ(f, ps, bets) {
     el('div', {class: 'mfoot'},
       el('div', {class: 'judge'}, ...ps.map((p, i) => {
         const row = el('div', {class: 'jrow'}, el('span', {}, `${p.name} (ставка ${bets[i]})`),
-          btn('✓ верно', 'ok', () => { p.score += bets[i]; lock(row); }),
-          btn('✗ неверно', 'bad', () => { p.score -= bets[i]; lock(row); }));
+          btn([ico('Check'), 'верно'], 'ok', () => { p.score += bets[i]; lock(row); }),
+          btn([ico('X'), 'неверно'], 'bad', () => { p.score -= bets[i]; lock(row); }));
         return row;
       })),
       el('div', {class: 'row center'}, btn('Показать ответ', 'ghost', () => ans.classList.remove('hidden')), btn('Итоги', '', results))));
@@ -279,7 +284,7 @@ function finalQ(f, ps, bets) {
 function results() {
   closeModal();
   const s = [...state.players].sort((a, b) => b.score - a.score);
-  $('#res').replaceChildren(...s.map((p, i) => el('div', {class: i ? 'res' : 'res win'}, `${i ? '' : '🏆 '}${p.name} — ${p.score}`)));
+  $('#res').replaceChildren(...s.map((p, i) => el('div', {class: i ? 'res' : 'res win'}, !i && ico('Trophy'), `${p.name} — ${p.score}`)));
   show('results');
 }
 
@@ -319,5 +324,6 @@ $('#import').onchange = async e => {
 };
 
 idb('readonly', s => s.get('pack')).catch(() => null).then(p => { pack = p || defaultPack(); });
+window.lucide?.createIcons();
 const joinId = new URLSearchParams(location.search).get('join');
 if (joinId) phone(joinId);

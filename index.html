@@ -5,35 +5,36 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Своя игра</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Russo+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Rubik:wght@600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="menu" class="screen center-screen">
-  <h1 class="logo">СВОЯ ИГРА</h1>
+  <h1 class="logo">СВОЯ<br>ИГРА</h1>
+  <p class="tagline">викторина для своих</p>
   <div class="menu-btns">
-    <button id="b-play">▶ Начать игру</button>
-    <button id="b-edit" class="ghost">✎ Редактор вопросов</button>
-    <button id="b-export" class="ghost">⬇ Сохранить пак в файл</button>
-    <label class="btnlike ghost">⬆ Загрузить пак из файла<input id="import" type="file" accept=".json,application/json" hidden></label>
+    <button id="b-play"><i data-lucide="play"></i>Начать игру</button>
+    <button id="b-edit" class="ghost"><i data-lucide="pencil"></i>Редактор вопросов</button>
+    <button id="b-export" class="ghost"><i data-lucide="download"></i>Сохранить пак в файл</button>
+    <label class="btnlike ghost"><i data-lucide="upload"></i>Загрузить пак из файла<input id="import" type="file" accept=".json,application/json" hidden></label>
   </div>
 </div>
 
 <div id="editor" class="screen hidden">
-  <header><h1>Редактор вопросов</h1><button class="ghost" data-menu>← В меню</button></header>
+  <header><h1>Редактор вопросов</h1><button class="ghost" data-menu><i data-lucide="arrow-left"></i>В меню</button></header>
   <main id="ed"></main>
 </div>
 
 <div id="setup" class="screen hidden center-screen">
   <h2>Игроки</h2>
   <div id="plist"></div>
-  <div class="row center"><button id="p-add" class="ghost">+ игрок</button><button id="p-go">Начать</button></div>
-  <button class="ghost" data-menu>← В меню</button>
+  <div class="row center"><button id="p-add" class="ghost"><i data-lucide="user-plus"></i>игрок</button><button id="p-go"><i data-lucide="play"></i>Начать</button></div>
+  <button class="ghost" data-menu><i data-lucide="arrow-left"></i>В меню</button>
 </div>
 
 <div id="game" class="screen hidden">
-  <header><h1 id="round-name"></h1><button class="ghost" id="g-phones">📱 Телефоны</button><button id="next-round">Следующий раунд →</button><button class="ghost" id="g-menu">Выйти</button></header>
+  <header><h1 id="round-name"></h1><button class="ghost" id="g-phones"><i data-lucide="smartphone"></i>Телефоны</button><button id="next-round">Следующий раунд</button><button class="ghost" id="g-menu"><i data-lucide="log-out"></i>Выйти</button></header>
   <div id="board"></div>
   <div id="scores"></div>
 </div>
@@ -41,7 +42,7 @@
 <div id="results" class="screen hidden center-screen">
   <h1 class="logo">ИТОГИ</h1>
   <div id="res"></div>
-  <button data-menu>В меню</button>
+  <button data-menu><i data-lucide="house"></i>В меню</button>
 </div>
 
 <div id="buzzer" class="screen hidden center-screen">
@@ -53,6 +54,7 @@
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
